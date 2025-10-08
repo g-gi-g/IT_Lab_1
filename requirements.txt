@@ -1,0 +1,11 @@
+flask
+flask-cors
+flask-jwt-extended
+sqlalchemy
+passlib[bcrypt]
+pillow
+requests
+watchdog
+pytest
+tkinterdnd2
+
