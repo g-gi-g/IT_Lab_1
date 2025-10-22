@@ -20,6 +20,7 @@ TPL = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mini Drive Web</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Arial, sans-serif; background: #f5f5f5; }
@@ -52,6 +53,22 @@ TPL = """
         .preview-content { max-height: 400px; overflow-y: auto; }
         .preview-text { background: white; padding: 15px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; }
         .preview-image { max-width: 100%; max-height: 400px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        
+        /* Syntax highlighting styles */
+        .preview-content pre {
+            background: #f8f8f8;
+            border: 1px solid #e1e1e1;
+            border-radius: 4px;
+            padding: 15px;
+            overflow-x: auto;
+            margin: 0;
+        }
+        
+        .preview-content code {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
         
         .upload-area { border: 2px dashed #007bff; border-radius: 8px; padding: 40px; text-align: center; margin-bottom: 20px; background: #f8f9fa; }
         .upload-area.dragover { background: #e3f2fd; border-color: #1976d2; }
@@ -238,7 +255,11 @@ TPL = """
                     .then(data => {
                         console.log('Preview data received:', data);
                         if (data.content) {
-                            previewContent.innerHTML = `<div class="preview-text">${escapeHtml(data.content)}</div>`;
+                            previewContent.innerHTML = `<pre><code class="language-python">${escapeHtml(data.content)}</code></pre>`;
+                            // Apply syntax highlighting
+                            if (window.Prism) {
+                                Prism.highlightAll();
+                            }
                             previewSection.classList.remove('hidden');
                             previewSection.scrollIntoView({ behavior: 'smooth' });
                         } else {
@@ -436,6 +457,8 @@ TPL = """
         refreshFiles();
 {% endif %}
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
 </body>
 </html>
 """

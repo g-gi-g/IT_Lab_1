@@ -1,5 +1,6 @@
 import io
 import os
+import re
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -7,10 +8,238 @@ from typing import Dict, List, Optional
 
 import requests
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, scrolledtext
 from PIL import Image, ImageTk
 
 from .sync import FolderSync
+
+class PythonSyntaxHighlighter:
+    """Improved Python syntax highlighter for tkinter Text widget"""
+    
+    def __init__(self, text_widget):
+        self.text_widget = text_widget
+        self.setup_tags()
+    
+    def setup_tags(self):
+        """Configure text tags for syntax highlighting"""
+        # Keywords
+        self.text_widget.tag_configure("keyword", foreground="#0000FF", font=("Consolas", 10, "bold"))
+        # Strings
+        self.text_widget.tag_configure("string", foreground="#008000", font=("Consolas", 10))
+        # Comments
+        self.text_widget.tag_configure("comment", foreground="#808080", font=("Consolas", 10, "italic"))
+        # Numbers
+        self.text_widget.tag_configure("number", foreground="#FF8000", font=("Consolas", 10))
+        # Functions
+        self.text_widget.tag_configure("function", foreground="#800080", font=("Consolas", 10, "bold"))
+        # Operators
+        self.text_widget.tag_configure("operator", foreground="#FF0000", font=("Consolas", 10))
+        # Built-ins
+        self.text_widget.tag_configure("builtin", foreground="#000080", font=("Consolas", 10, "bold"))
+    
+    def highlight_python(self, content):
+        """Apply syntax highlighting to Python code"""
+        # Clear existing tags
+        for tag in ["keyword", "string", "comment", "number", "function", "operator", "builtin"]:
+            self.text_widget.tag_remove(tag, "1.0", tk.END)
+        
+        # Get all text content
+        text_content = self.text_widget.get("1.0", tk.END)
+        if not text_content.strip():
+            return
+        
+        # Process line by line for better accuracy
+        lines = text_content.split('\n')
+        current_line = 1
+        
+        for line in lines:
+            if not line.strip():
+                current_line += 1
+                continue
+                
+            # Highlight comments first (they have priority)
+            self._highlight_line_comments(line, current_line)
+            
+            # Highlight strings (both single and multi-line)
+            self._highlight_line_strings(line, current_line)
+            
+            # Highlight keywords
+            self._highlight_line_keywords(line, current_line)
+            
+            # Highlight numbers
+            self._highlight_line_numbers(line, current_line)
+            
+            # Highlight function definitions
+            self._highlight_line_functions(line, current_line)
+            
+            # Highlight operators
+            self._highlight_line_operators(line, current_line)
+            
+            # Highlight built-ins
+            self._highlight_line_builtins(line, current_line)
+            
+            current_line += 1
+    
+    def _highlight_line_comments(self, line, line_num):
+        """Highlight comments in a line"""
+        comment_start = line.find('#')
+        if comment_start != -1:
+            start_pos = f"{line_num}.{comment_start}"
+            end_pos = f"{line_num}.{len(line)}"
+            self.text_widget.tag_add("comment", start_pos, end_pos)
+    
+    def _highlight_line_strings(self, line, line_num):
+        """Highlight strings in a line"""
+        # Single quotes
+        self._highlight_quoted_strings(line, line_num, "'", "'")
+        # Double quotes
+        self._highlight_quoted_strings(line, line_num, '"', '"')
+        # Triple quotes
+        self._highlight_quoted_strings(line, line_num, '"""', '"""')
+        self._highlight_quoted_strings(line, line_num, "'''", "'''")
+    
+    def _highlight_quoted_strings(self, line, line_num, start_char, end_char):
+        """Highlight quoted strings"""
+        start_idx = 0
+        while True:
+            start_pos = line.find(start_char, start_idx)
+            if start_pos == -1:
+                break
+            
+            # Find matching end quote
+            end_pos = line.find(end_char, start_pos + len(start_char))
+            if end_pos == -1:
+                # String continues to end of line
+                end_pos = len(line)
+            else:
+                end_pos += len(end_char)
+            
+            # Apply highlighting
+            start_tag = f"{line_num}.{start_pos}"
+            end_tag = f"{line_num}.{end_pos}"
+            self.text_widget.tag_add("string", start_tag, end_tag)
+            
+            start_idx = end_pos
+    
+    def _highlight_line_keywords(self, line, line_num):
+        """Highlight Python keywords"""
+        keywords = [
+            'and', 'as', 'assert', 'break', 'class', 'continue', 'def', 'del',
+            'elif', 'else', 'except', 'exec', 'finally', 'for', 'from', 'global',
+            'if', 'import', 'in', 'is', 'lambda', 'not', 'or', 'pass', 'print',
+            'raise', 'return', 'try', 'while', 'with', 'yield', 'True', 'False', 'None'
+        ]
+        
+        for keyword in keywords:
+            # Use word boundaries to avoid partial matches
+            pattern = r'\b' + re.escape(keyword) + r'\b'
+            start = 0
+            while True:
+                match = re.search(pattern, line[start:])
+                if not match:
+                    break
+                
+                start_pos = start + match.start()
+                end_pos = start + match.end()
+                
+                # Check if this is inside a string or comment
+                if not self._is_inside_string_or_comment(line, start_pos):
+                    start_tag = f"{line_num}.{start_pos}"
+                    end_tag = f"{line_num}.{end_pos}"
+                    self.text_widget.tag_add("keyword", start_tag, end_tag)
+                
+                start = start_pos + 1
+    
+    def _highlight_line_numbers(self, line, line_num):
+        """Highlight numbers"""
+        # Find all numbers (integers and floats)
+        for match in re.finditer(r'\b\d+\.?\d*\b', line):
+            start_pos = match.start()
+            end_pos = match.end()
+            
+            # Check if this is inside a string or comment
+            if not self._is_inside_string_or_comment(line, start_pos):
+                start_tag = f"{line_num}.{start_pos}"
+                end_tag = f"{line_num}.{end_pos}"
+                self.text_widget.tag_add("number", start_tag, end_tag)
+    
+    def _highlight_line_functions(self, line, line_num):
+        """Highlight function definitions"""
+        # Look for 'def function_name(' pattern
+        for match in re.finditer(r'\bdef\s+(\w+)', line):
+            start_pos = match.start()
+            end_pos = match.end()
+            
+            # Check if this is inside a string or comment
+            if not self._is_inside_string_or_comment(line, start_pos):
+                start_tag = f"{line_num}.{start_pos}"
+                end_tag = f"{line_num}.{end_pos}"
+                self.text_widget.tag_add("function", start_tag, end_tag)
+    
+    def _highlight_line_operators(self, line, line_num):
+        """Highlight operators"""
+        operators = ['+', '-', '*', '/', '%', '=', '<', '>', '!', '&', '|', '^', '~', '==', '!=', '<=', '>=', '+=', '-=', '*=', '/=']
+        
+        for op in operators:
+            start_idx = 0
+            while True:
+                pos = line.find(op, start_idx)
+                if pos == -1:
+                    break
+                
+                # Check if this is inside a string or comment
+                if not self._is_inside_string_or_comment(line, pos):
+                    start_tag = f"{line_num}.{pos}"
+                    end_tag = f"{line_num}.{pos + len(op)}"
+                    self.text_widget.tag_add("operator", start_tag, end_tag)
+                
+                start_idx = pos + 1
+    
+    def _highlight_line_builtins(self, line, line_num):
+        """Highlight built-in functions"""
+        builtins = ['print', 'len', 'str', 'int', 'float', 'list', 'dict', 'tuple', 'set', 'range', 'enumerate', 'zip', 'map', 'filter', 'sorted', 'reversed']
+        
+        for builtin in builtins:
+            pattern = r'\b' + re.escape(builtin) + r'\b'
+            start = 0
+            while True:
+                match = re.search(pattern, line[start:])
+                if not match:
+                    break
+                
+                start_pos = start + match.start()
+                end_pos = start + match.end()
+                
+                # Check if this is inside a string or comment
+                if not self._is_inside_string_or_comment(line, start_pos):
+                    start_tag = f"{line_num}.{start_pos}"
+                    end_tag = f"{line_num}.{end_pos}"
+                    self.text_widget.tag_add("builtin", start_tag, end_tag)
+                
+                start = start_pos + 1
+    
+    def _is_inside_string_or_comment(self, line, pos):
+        """Check if position is inside a string or comment"""
+        # Check for comment
+        comment_pos = line.find('#')
+        if comment_pos != -1 and pos >= comment_pos:
+            return True
+        
+        # Check for strings
+        in_string = False
+        string_char = None
+        i = 0
+        while i < pos:
+            if line[i] in ['"', "'"] and (i == 0 or line[i-1] != '\\'):
+                if not in_string:
+                    in_string = True
+                    string_char = line[i]
+                elif line[i] == string_char:
+                    in_string = False
+                    string_char = None
+            i += 1
+        
+        return in_string
 
 # Try to import tkinterdnd2 for better drag-n-drop support
 try:
@@ -122,10 +351,13 @@ class DriveClientApp(tkdnd.Tk if HAS_TKINTERDND2 else tk.Tk):
         # preview area
         right = ttk.Frame(body)
         body.add(right, weight=2)
-        self.preview_text = tk.Text(right, height=10)
+        self.preview_text = scrolledtext.ScrolledText(right, height=10, font=("Consolas", 10))
         self.preview_text.pack(expand=True, fill=tk.BOTH)
         self.preview_label = ttk.Label(right)
         self.preview_label.pack()
+        
+        # Initialize syntax highlighter
+        self.syntax_highlighter = PythonSyntaxHighlighter(self.preview_text)
 
         # drag-n-drop support
         self.setup_drag_drop()
@@ -300,7 +532,10 @@ class DriveClientApp(tkdnd.Tk if HAS_TKINTERDND2 else tk.Tk):
                 self.preview_label.configure(image='')
                 self.preview_text.configure(state=tk.NORMAL)
                 self.preview_text.delete('1.0', tk.END)
-                self.preview_text.insert('1.0', data.get('content', ''))
+                content = data.get('content', '')
+                self.preview_text.insert('1.0', content)
+                # Apply syntax highlighting
+                self.syntax_highlighter.highlight_python(content)
                 self.preview_text.configure(state=tk.NORMAL)
             elif extension == '.jpg':
                 r = requests.get(f"{API_URL}/files/{fid}/preview", headers=self.auth_headers(), timeout=10)
